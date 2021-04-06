@@ -13,7 +13,7 @@ interface Item {
     quantity: number;
 }
 
-export interface Order {
+export interface OrderDetails {
     items: Item[];
     firstname: string;
     lastname: string;
@@ -22,7 +22,6 @@ export interface Order {
     phone: string;
     pickup: boolean;
     tip: number;
-    eta: string;
     quantity: number;
     uniqueQuantity: number;
     total: number; 
