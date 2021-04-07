@@ -8,7 +8,7 @@ interface Dish {
     isSpecial: boolean;
 }
 
-interface Item {
+export interface Item {
     product: Dish;
     quantity: number;
 }
