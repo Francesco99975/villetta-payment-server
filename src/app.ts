@@ -76,14 +76,24 @@ app.post('/charge', async (req, res, next) => {
                 eta = eta.substring(0, eta.indexOf('and')).trim();
             }
         } else {
-            eta = "30 minutes";
+            eta = `${order.orderPreparationTime} minutes`;
         }
 
+        //Calculate Tip
         const tipCharge = (order.total * (order.tip / 100 + 1)) - order.total;
+
+        //Calculate Amount to Pay
+        let amt;
+        if(order.pickup) {
+            amt = +((order.total * ONTAX + tipCharge) * 100).toFixed(0);
+        } else {
+            amt = +(((order.total * ONTAX + (+order.homeDeliveryCost)) + tipCharge) * 100).toFixed(0);
+        }
+
         const success = await stripe.charges.create({
-            amount: +((order.total * ONTAX + tipCharge) * 100).toFixed(0),
+            amount: amt,
             currency: "cad",
-            description: `Food Order from Villetta. Tip: ${tipCharge.toFixed(2)} (${order.tip}%)`,
+            description: `Food Order from Villetta (${order.pickup ? 'P' : 'D'}). Tip: $${tipCharge.toFixed(2)} (${order.tip}%)`,
             source: order.tokenId
         });
 
