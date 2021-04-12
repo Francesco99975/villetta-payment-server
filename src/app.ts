@@ -19,7 +19,7 @@ const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
 
 
 const PORT = 3000 || process.env.PORT;
-const MONGO_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.02l8p.azure.mongodb.net/${process.env.MONGO_DATABASE}?retryWrites=true&w=majority`;
+// const MONGO_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.02l8p.azure.mongodb.net/${process.env.MONGO_DATABASE}?retryWrites=true&w=majority`;
 
 const ONTAX = 1.13;
 const VILLETTA_LAT = '43.8022297';
@@ -116,7 +116,7 @@ app.use((error: HttpException, req: express.Request, res: express.Response, next
     return res.status(error.code || 500).json({message: error.message || "An error occurred on the server"});
 });
 
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true})
+mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopology: true})
     .then(() => 
         app.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
