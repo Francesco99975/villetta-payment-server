@@ -45,14 +45,14 @@ app.post('/charge', async (req, res, next) => {
             return res.status(500).json({'message': 'Too Many Requests'});
         }
 
+        if(location.data.status == 'ZERO_RESULTS') {
+            return res.status(401).json({'message': 'Address Not Found'});
+        }
+
         const province = location.data.results[0].address_components.find((el: any) => el.types[0] == 'administrative_area_level_1');
 
         if(province.short_name != 'ON') {
             return res.status(401).json({'message': 'Address out of resturants bounds'});
-        }
-
-        if(location.data.status == 'ZERO_RESULTS') {
-            return res.status(401).json({'message': 'Address Not Found'});
         }
 
         const lat = location.data.results[0].geometry.location.lat;
@@ -67,17 +67,23 @@ app.post('/charge', async (req, res, next) => {
             return res.status(401).json({'message': 'Address out of delivery bounds'});
         }
 
-        let eta: string = readableSeconds(duration + (30 * 60), 2);
+        let eta: string;
 
-        if(eta.includes('seconds')) {
-            eta = eta.substring(0, eta.indexOf('and')).trim();
+        if(!order.pickup) {
+            eta = readableSeconds(duration + (30 * 60), 2);
+
+            if(eta.includes('seconds')) {
+                eta = eta.substring(0, eta.indexOf('and')).trim();
+            }
+        } else {
+            eta = "30 minutes";
         }
 
         const tipCharge = (order.total * (order.tip / 100 + 1)) - order.total;
         const success = await stripe.charges.create({
-            amount: (order.total * ONTAX + tipCharge) * 100,
+            amount: +((order.total * ONTAX + tipCharge) * 100).toFixed(0),
             currency: "cad",
-            description: `Food Order from Villetta. Tip: ${tipCharge.toFixed(2)}`,
+            description: `Food Order from Villetta. Tip: ${tipCharge.toFixed(2)} (${order.tip}%)`,
             source: order.tokenId
         });
 
@@ -92,7 +98,7 @@ app.post('/charge', async (req, res, next) => {
                 tip: order.tip.toString() + '%' + ` ($${tipCharge.toFixed(2)})`,
                 eta
             }).save();
-            return res.status(201).json({'message': 'order created', eta});
+            return res.status(201).json({'message': 'order created', eta, pickup: order.pickup});
         } else {
             return res.status(401).json({'message': 'An error occurred'});
         }
@@ -111,8 +117,9 @@ app.use((error: HttpException, req: express.Request, res: express.Response, next
 });
 
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true})
-    .then(() => app.listen(PORT, () => {
-                    console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
-    })
-)
-.catch((err) => console.log(err));
+    .then(() => 
+        app.listen(PORT, () => {
+            console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
+        })
+    )
+    .catch((err) => console.log(err));
