@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import { json } from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -8,6 +9,7 @@ import mongoose from "mongoose";
 import { OrderDetails } from "./interfaces/order-details";
 import { HttpException } from "./interfaces/error";
 import Order from "./models/order";
+import PDFDocument from "pdfkit";
 
 import readableSeconds from "readable-seconds";
 
@@ -108,6 +110,26 @@ app.post('/charge', async (req, res, next) => {
                 tip: order.tip.toString() + '%' + ` ($${tipCharge.toFixed(2)})`,
                 eta
             }).save();
+
+            const invoice = new PDFDocument();
+
+            invoice.pipe(fs.createWriteStream('invoice.pdf'));
+
+            invoice.fontSize(16).text("Invoice", { underline: true });
+            invoice.text("---------------------------------------");
+
+            order.items.forEach((item) => {
+                invoice.text(
+                `${item.product.name} - x${item.quantity} / $${(item.product.price * item.quantity).toFixed(2)} --- $${item.product.price} ea.`
+                );
+            });
+            invoice.text("---------------------------------------");
+            if(!order.pickup) invoice.fontSize(16).text(`Delivery Fee: $${(+order.homeDeliveryCost).toFixed(2)}`);
+            invoice.fontSize(16).text(`Tip : $${tipCharge.toFixed(2)} (${order.tip}%)`);
+            invoice.fontSize(16).text(`HST: $${(order.total * ONTAX - order.total).toFixed(2)}`);
+            invoice.fontSize(20).text(`Total: $${(amt / 100).toFixed(2)}`);
+            invoice.end();
+
             return res.status(201).json({'message': 'order created', eta, pickup: order.pickup});
         } else {
             return res.status(401).json({'message': 'An error occurred'});
