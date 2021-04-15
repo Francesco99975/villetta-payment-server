@@ -10,6 +10,8 @@ import { OrderDetails } from "./interfaces/order-details";
 import { HttpException } from "./interfaces/error";
 import Order from "./models/order";
 import PDFDocument from "pdfkit";
+import nodemailer from "nodemailer";
+import sendgridTransport from "nodemailer-sendgrid-transport";
 
 import readableSeconds from "readable-seconds";
 
@@ -18,6 +20,13 @@ const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     apiVersion: "2020-08-27",
     typescript: true
 });
+
+const mailer = nodemailer.createTransport(
+    sendgridTransport({
+            auth: {
+                api_key: process.env.SENDGRID_API_KEY,
+            },
+    }));
 
 
 const PORT = 3000 || process.env.PORT;
@@ -129,6 +138,14 @@ app.post('/charge', async (req, res, next) => {
             invoice.fontSize(16).text(`HST: $${(order.total * ONTAX - order.total).toFixed(2)}`);
             invoice.fontSize(20).text(`Total: $${(amt / 100).toFixed(2)}`);
             invoice.end();
+
+            mailer.sendMail({
+                to: order.email,
+                from: "francescobarranca@outlook.com",
+                subject: "Villetta Order Invoice",
+                html: `<h1>Thank you for choosing us!</h1>`,
+                attachments: [{filename: 'invoice.pdf', path: 'invoice.pdf'}]
+            });
 
             return res.status(201).json({'message': 'order created', eta, pickup: order.pickup});
         } else {

@@ -17,6 +17,8 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "mongoose": "^5.12.3",
+    "nodemailer": "^6.5.0",
+    "nodemailer-sendgrid-transport": "^0.2.0",
     "pdfkit": "^0.12.1",
     "readable-seconds": "^1.2.0",
     "stripe": "^8.142.0",
@@ -28,6 +30,7 @@
     "@types/express": "^4.17.11",
     "@types/mongoose": "^5.10.4",
     "@types/node": "^14.14.37",
+    "@types/nodemailer": "^6.4.1",
     "@types/pdfkit": "^0.11.0",
     "nodemon": "^2.0.7",
     "tsc-watch": "^4.2.9"
