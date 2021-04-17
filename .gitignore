@@ -5,3 +5,5 @@ dist
 compiler.sh
 package-adapter.py
 .env
+docker-compose.yml
+init-mongo.js

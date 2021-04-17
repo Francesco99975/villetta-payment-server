@@ -16,6 +16,20 @@ import sendgridTransport from "nodemailer-sendgrid-transport";
 import readableSeconds from "readable-seconds";
 
 const app = express();
+
+let result = dotenv.config();
+
+if(result.error) {
+    console.log(result.error);
+}
+
+const PORT = 3000 || process.env.PORT;
+// const MONGO_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.02l8p.azure.mongodb.net/${process.env.MONGO_DATABASE}?retryWrites=true&w=majority`;
+
+const ONTAX = 1.13;
+const VILLETTA_LAT = '43.8022297';
+const VILLETTA_LNG = '-79.53088099999999';
+
 const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     apiVersion: "2020-08-27",
     typescript: true
@@ -28,22 +42,12 @@ const mailer = nodemailer.createTransport(
             },
     }));
 
-
-const PORT = 3000 || process.env.PORT;
-// const MONGO_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.02l8p.azure.mongodb.net/${process.env.MONGO_DATABASE}?retryWrites=true&w=majority`;
-
-const ONTAX = 1.13;
-const VILLETTA_LAT = '43.8022297';
-const VILLETTA_LNG = '-79.53088099999999';
-
-let result = dotenv.config();
-
-if(result.error) {
-    console.log(result.error);
-}
-
 app.use(cors())
 app.use(json());
+
+app.get('/', (req, res, next) => {
+    return res.json({'message': "Welcome to the payment server"});
+});
 
 app.post('/charge', async (req, res, next) => {
     try {
@@ -171,4 +175,8 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
         })
     )
-    .catch((err) => console.log(err));
+    .catch((err) => {
+        console.log("DB ERROR!!!");
+        console.log(process.env.MONGO_URI);
+        console.log(err); 
+    });
