@@ -27,7 +27,11 @@ const orderSchema = new Schema({
         required: true
     },
     eta: {
-        type: String,
+        type: Number,
+        required: true
+    },
+    fulfilled: {
+        type: Boolean,
         required: true
     }
 }, {timestamps: true});

@@ -42,14 +42,29 @@ const mailer = nodemailer.createTransport(
             },
     }));
 
-app.use(cors())
+const whitelist = [
+    'http://localhost:4200',
+    'http://localhost', 
+    'https://localhost', 
+    'http://villetta-app', 
+    'https://villetta-app']
+
+app.use(cors({
+    origin: function (origin: any, callback) {
+                if (whitelist.indexOf(origin) !== -1 || !origin) {
+                callback(null, true)
+                } else {
+                callback(new Error('Not allowed by CORS'))
+                }
+            }
+}));
 app.use(json());
 
 app.get('/', (req, res, next) => {
     return res.json({'message': "Welcome to the payment server"});
 });
 
-app.use('auth', authRouter);
+app.use('/auth', authRouter);
 
 app.post('/charge', async (req, res, next) => {
     try {
@@ -84,16 +99,19 @@ app.post('/charge', async (req, res, next) => {
             return res.status(401).json({'message': 'Address out of delivery bounds'});
         }
 
-        let eta: string;
+        let eta: number;
+        let etaDesc: string;
 
         if(!order.pickup) {
-            eta = readableSeconds(duration + (30 * 60), 2);
+            eta = duration + (30 * 60), 2
+            etaDesc = readableSeconds(eta);
 
-            if(eta.includes('seconds')) {
-                eta = eta.substring(0, eta.indexOf('and')).trim();
+            if(etaDesc.includes('seconds')) {
+                etaDesc = etaDesc.substring(0, etaDesc.indexOf('and')).trim();
             }
         } else {
-            eta = `${order.orderPreparationTime} minutes`;
+            eta = +order.orderPreparationTime;
+            etaDesc = `${order.orderPreparationTime} minutes`;
         }
 
         //Calculate Tip
@@ -123,7 +141,8 @@ app.post('/charge', async (req, res, next) => {
                 phone: order.phone,
                 pickup: order.pickup,
                 tip: order.tip.toString() + '%' + ` ($${tipCharge.toFixed(2)})`,
-                eta
+                eta,
+                fulfilled: false
             }).save();
 
             const invoice = new PDFDocument();
@@ -153,7 +172,7 @@ app.post('/charge', async (req, res, next) => {
                 attachments: [{filename: 'invoice.pdf', path: 'invoice.pdf'}]
             });
 
-            return res.status(201).json({'message': 'order created', eta, pickup: order.pickup});
+            return res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
         } else {
             return res.status(401).json({'message': 'An error occurred'});
         }
