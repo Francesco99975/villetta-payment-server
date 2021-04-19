@@ -74,6 +74,23 @@ app.get('/orders', isAuth, async (req, res, next) => {
     }
 });
 
+app.put('/order/:id', isAuth, async (req, res, next) => {
+    const id = req.params.id;
+    const status = req.body.status;
+
+    try {
+        const order = await Order.findById(id);
+        if(!order) {
+            throw new HttpException(404, "Could not find any order with this id");
+        }
+        order.set('fulfilled', status);
+        await order.save();
+        return res.status(201).json({message: 'order status updated'});
+    } catch (error) {
+        return next(error);
+    }
+});
+
 app.use('/auth', authRouter);
 
 app.post('/charge', async (req, res, next) => {
