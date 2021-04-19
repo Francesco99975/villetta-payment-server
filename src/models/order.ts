@@ -22,8 +22,12 @@ const orderSchema = new Schema({
         type: Boolean,
         required: true
     },
+    deliveryFees: {
+        type: Number,
+        required: true
+    },
     tip: {
-        type: String,
+        type: Number,
         required: true
     },
     eta: {

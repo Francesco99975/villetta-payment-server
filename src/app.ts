@@ -14,6 +14,7 @@ import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import sendgridTransport from "nodemailer-sendgrid-transport";
 import readableSeconds from "readable-seconds";
+import isAuth from "./middlewares/isAuth";
 
 const app = express();
 
@@ -62,6 +63,15 @@ app.use(json());
 
 app.get('/', (req, res, next) => {
     return res.json({'message': "Welcome to the payment server"});
+});
+
+app.get('/orders', isAuth, async (req, res, next) => {
+    try {
+        const orders = await Order.find();
+        return res.status(200).json({orders});
+    } catch (error) {
+        return next(error);
+    }
 });
 
 app.use('/auth', authRouter);
@@ -140,7 +150,8 @@ app.post('/charge', async (req, res, next) => {
                 address: order.address,
                 phone: order.phone,
                 pickup: order.pickup,
-                tip: order.tip.toString() + '%' + ` ($${tipCharge.toFixed(2)})`,
+                deliveryFees: order.pickup ? 0.0 : +order.homeDeliveryCost,
+                tip: order.tip,
                 eta,
                 fulfilled: false
             }).save();
