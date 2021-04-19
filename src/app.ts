@@ -8,11 +8,11 @@ import axios from "axios";
 import mongoose from "mongoose";
 import { OrderDetails } from "./interfaces/order-details";
 import { HttpException } from "./interfaces/error";
+import authRouter from "./routes/auth"
 import Order from "./models/order";
 import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import sendgridTransport from "nodemailer-sendgrid-transport";
-
 import readableSeconds from "readable-seconds";
 
 const app = express();
@@ -48,6 +48,8 @@ app.use(json());
 app.get('/', (req, res, next) => {
     return res.json({'message': "Welcome to the payment server"});
 });
+
+app.use('auth', authRouter);
 
 app.post('/charge', async (req, res, next) => {
     try {
