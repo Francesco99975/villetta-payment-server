@@ -44,6 +44,7 @@ const mailer = nodemailer.createTransport(
     }));
 
 const whitelist = [
+    'http://localhost:4201',
     'http://localhost:4200',
     'http://localhost', 
     'https://localhost', 
@@ -85,7 +86,7 @@ app.put('/order/:id', isAuth, async (req, res, next) => {
         }
         order.set('fulfilled', status);
         await order.save();
-        return res.status(201).json({message: 'order status updated'});
+        return res.status(201).json({message: 'order status updated', id});
     } catch (error) {
         return next(error);
     }
@@ -97,59 +98,59 @@ app.post('/charge', async (req, res, next) => {
     try {
         const order = req.body as OrderDetails;
 
-        const formattedAddress = order.address.replace(' ', '+');
-        const location = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${formattedAddress}+ON+Canada&key=${process.env.GOOGLE_API_KEY}`);
-
-        if(location.data.status == 'OVER_QUERY_LIMIT') {
-            return res.status(500).json({'message': 'Too Many Requests'});
-        }
-
-        if(location.data.status == 'ZERO_RESULTS') {
-            return res.status(401).json({'message': 'Address Not Found'});
-        }
-
-        const province = location.data.results[0].address_components.find((el: any) => el.types[0] == 'administrative_area_level_1');
-
-        if(province.short_name != 'ON') {
-            return res.status(401).json({'message': 'Address out of resturants bounds'});
-        }
-
-        const lat = location.data.results[0].geometry.location.lat;
-        const lng = location.data.results[0].geometry.location.lng;
-
-        const etaInfo = await axios.get(`https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins=${VILLETTA_LAT},${VILLETTA_LNG}&destinations=${lat},${lng}&key=${process.env.GOOGLE_API_KEY}`);
-
-        const distance = etaInfo.data.rows[0].elements[0].distance.value;
-        const duration = etaInfo.data.rows[0].elements[0].duration.value;
-
-        if(distance > 10000 && !order.pickup) {
-            return res.status(401).json({'message': 'Address out of delivery bounds'});
-        }
-
         let eta: number;
         let etaDesc: string;
 
         if(!order.pickup) {
-            eta = duration + (30 * 60), 2
+            const formattedAddress = order.address.replace(' ', '+');
+            const location = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${formattedAddress}+ON+Canada&key=${process.env.GOOGLE_API_KEY}`);
+
+            if(location.data.status == 'OVER_QUERY_LIMIT') {
+                return res.status(500).json({'message': 'Too Many Requests'});
+            }
+
+            if(location.data.status == 'ZERO_RESULTS') {
+                return res.status(401).json({'message': 'Address Not Found'});
+            }
+
+            const province = location.data.results[0].address_components.find((el: any) => el.types[0] == 'administrative_area_level_1');
+
+            if(province.short_name != 'ON') {
+                return res.status(401).json({'message': 'Address out of resturants bounds'});
+            }
+
+            const lat = location.data.results[0].geometry.location.lat;
+            const lng = location.data.results[0].geometry.location.lng;
+
+            const etaInfo = await axios.get(`https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins=${VILLETTA_LAT},${VILLETTA_LNG}&destinations=${lat},${lng}&key=${process.env.GOOGLE_API_KEY}`);
+
+            const distance = etaInfo.data.rows[0].elements[0].distance.value;
+            const duration = etaInfo.data.rows[0].elements[0].duration.value;
+
+            if(distance > 20000 && !order.pickup) {
+                return res.status(401).json({'message': 'Address out of delivery bounds'});
+            }
+
+            eta = duration + (+order.orderPreparationTime * 60);
             etaDesc = readableSeconds(eta);
 
             if(etaDesc.includes('seconds')) {
                 etaDesc = etaDesc.substring(0, etaDesc.indexOf('and')).trim();
             }
         } else {
-            eta = +order.orderPreparationTime;
+            eta = +order.orderPreparationTime * 60;
             etaDesc = `${order.orderPreparationTime} minutes`;
         }
 
-        //Calculate Tip
-        const tipCharge = (order.total * (order.tip / 100 + 1)) - order.total;
-
         //Calculate Amount to Pay
         let amt;
+        let tipCharge;
         if(order.pickup) {
+            tipCharge = ((order.total * ONTAX) * (order.tip / 100 + 1)) - (order.total * ONTAX);
             amt = +((order.total * ONTAX + tipCharge) * 100).toFixed(0);
         } else {
-            amt = +(((order.total * ONTAX + (+order.homeDeliveryCost)) + tipCharge) * 100).toFixed(0);
+            tipCharge = (((order.total + (+order.homeDeliveryCost)) * ONTAX) * (order.tip / 100 + 1)) - ((order.total + (+order.homeDeliveryCost)) * ONTAX);
+            amt = +((((order.total + (+order.homeDeliveryCost)) * ONTAX) + tipCharge) * 100).toFixed(0);
         }
 
         const success = await stripe.charges.create({
