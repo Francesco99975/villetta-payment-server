@@ -8,21 +8,21 @@ import mailer from "@sendgrid/mail";
  
 mailer.setApiKey( process.env.SENDGRID_API_KEY!);
 
-const signUp = async (req: Request, res: Response, next: NextFunction) => {
-    const {username, password} = req.body as LoginAccountCredentials;
+// const signUp = async (req: Request, res: Response, next: NextFunction) => {
+//     const {username, password} = req.body as LoginAccountCredentials;
     
-    try {
-        const existingUser= await User.findOne({username: username});
-        if(existingUser) {
-            throw new HttpException(401 ,"This username was already taken.");
-        }
-        const hashedpassword = await bcrypt.hash(password, 12);
-        const newUser = await new User({username, password: hashedpassword}).save();
-        return res.status(201).json({message: "User Account, successfully created!", UserId: newUser._id.toString()});
-    } catch (error) {
-        return next(error);
-    }
-};
+//     try {
+//         const existingUser= await User.findOne({username: username});
+//         if(existingUser) {
+//             throw new HttpException(401 ,"This username was already taken.");
+//         }
+//         const hashedpassword = await bcrypt.hash(password, 12);
+//         const newUser = await new User({username, password: hashedpassword}).save();
+//         return res.status(201).json({message: "User Account, successfully created!", UserId: newUser._id.toString()});
+//     } catch (error) {
+//         return next(error);
+//     }
+// };
 
 const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -109,4 +109,4 @@ const change = async (req: Request, res: Response, next: NextFunction) => {
 //     }
 // }
 
-export { login, signUp, change }; 
+export { login, change }; 
