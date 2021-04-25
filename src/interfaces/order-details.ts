@@ -22,6 +22,7 @@ export interface OrderDetails {
     phone: string;
     pickup: boolean;
     tip: number;
+    method: string;
     homeDeliveryCost: number;
     orderPreparationTime: number;
     quantity: number;

@@ -30,6 +30,10 @@ const orderSchema = new Schema({
         type: Number,
         required: true
     },
+    method: {
+        type: String,
+        required: true
+    },
     eta: {
         type: Number,
         required: true

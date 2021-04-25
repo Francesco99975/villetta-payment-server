@@ -11,12 +11,15 @@ import { HttpException } from "./interfaces/error";
 import authRouter from "./routes/auth"
 import Order from "./models/order";
 import PDFDocument from "pdfkit";
-import nodemailer from "nodemailer";
-import sendgridTransport from "nodemailer-sendgrid-transport";
+import mailer from "@sendgrid/mail";
 import readableSeconds from "readable-seconds";
 import isAuth from "./middlewares/isAuth";
+import User from "./models/user";
+import bcrypt from "bcrypt";
+import { generatePasswordV2 } from "./models/passwordGenerator";
 
 const app = express();
+mailer.setApiKey(process.env.SENDGRID_API_KEY!);
 
 let result = dotenv.config();
 
@@ -36,12 +39,6 @@ const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     typescript: true
 });
 
-const mailer = nodemailer.createTransport(
-    sendgridTransport({
-            auth: {
-                api_key: process.env.SENDGRID_API_KEY,
-            },
-    }));
 
 const whitelist = [
     'http://localhost:4201',
@@ -153,14 +150,17 @@ app.post('/charge', async (req, res, next) => {
             amt = +((((order.total + (+order.homeDeliveryCost)) * ONTAX) + tipCharge) * 100).toFixed(0);
         }
 
-        const success = await stripe.charges.create({
-            amount: amt,
-            currency: "cad",
-            description: `Food Order from Villetta (${order.pickup ? 'P' : 'D'}). Tip: $${tipCharge.toFixed(2)} (${order.tip}%)`,
-            source: order.tokenId
-        });
+        let success;
+        if(order.method === 's') {
+            success = await stripe.charges.create({
+                amount: amt,
+                currency: "cad",
+                description: `Food Order from Villetta (${order.pickup ? 'P' : 'D'}). Tip: $${tipCharge.toFixed(2)} (${order.tip}%)`,
+                source: order.tokenId
+            });
+        }
 
-        if(success) {
+        if(success || order.method === 'c') {
             await new Order({
                 clientname: order.firstname + ' ' + order.lastname,
                 items: order.items,
@@ -170,6 +170,7 @@ app.post('/charge', async (req, res, next) => {
                 pickup: order.pickup,
                 deliveryFees: order.pickup ? 0.0 : +order.homeDeliveryCost,
                 tip: order.tip,
+                method: order.method,
                 eta,
                 fulfilled: false
             }).save();
@@ -193,12 +194,12 @@ app.post('/charge', async (req, res, next) => {
             invoice.fontSize(20).text(`Total: $${(amt / 100).toFixed(2)}`);
             invoice.end();
 
-            mailer.sendMail({
+            mailer.send({
                 to: order.email,
                 from: "francescobarranca@outlook.com",
                 subject: "Villetta Order Invoice",
                 html: `<h1>Thank you for choosing us!</h1>`,
-                attachments: [{filename: 'invoice.pdf', path: 'invoice.pdf'}]
+                attachments: [{filename: 'invoice.pdf', content: 'invoice.pdf'}]
             });
 
             return res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
@@ -220,11 +221,34 @@ app.use((error: HttpException, req: express.Request, res: express.Response, next
 });
 
 mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopology: true})
-    .then(() => 
+    .then(async () => {
+        const users = await User.find();
+        if(!users || users.length <= 0) {
+            const password = generatePasswordV2(10, 1, 1, 1, 1);
+            // const password = "password";
+            const hash = await bcrypt.hash(password, 12);
+            await new User({username: 'resadmin', password: hash}).save();
+
+            mailer.send({
+                to: "francescomich99@gmail.com",
+                from: "francescobarranca@outlook.com",
+                subject: "Automatic Password Reset",
+                html: `
+                    <h1>Your password was changed by your mantainer or automated system</h1>
+                    <h2>Your new password is: ${password}</h2>
+                `,
+            }).then((result) => {
+                console.log("Mail Sent");
+                console.log(result);
+            }).catch((err) => {
+                console.log("Mail Error");
+                console.log(err);
+            });
+        }
         app.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
-        })
-    )
+        });
+    })
     .catch((err) => {
         console.log("DB ERROR!!!");
         console.log(process.env.MONGO_URI);
