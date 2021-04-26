@@ -19,7 +19,6 @@ import bcrypt from "bcrypt";
 import { generatePasswordV2 } from "./models/passwordGenerator";
 
 const app = express();
-mailer.setApiKey(process.env.SENDGRID_API_KEY!);
 
 let result = dotenv.config();
 
@@ -33,6 +32,8 @@ const PORT = 3000 || process.env.PORT;
 const ONTAX = 1.13;
 const VILLETTA_LAT = '43.8022297';
 const VILLETTA_LNG = '-79.53088099999999';
+
+mailer.setApiKey(process.env.SENDGRID_API_KEY!);
 
 const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     apiVersion: "2020-08-27",
@@ -242,6 +243,7 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
                 console.log(result);
             }).catch((err) => {
                 console.log("Mail Error");
+                console.log(process.env.SENDGRID_API_KEY);
                 console.log(err);
             });
         }
