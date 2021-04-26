@@ -7,3 +7,4 @@ package-adapter.py
 .env
 docker-compose.yml
 init-mongo.js
+invoices

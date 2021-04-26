@@ -4,9 +4,14 @@ import jwt from "jsonwebtoken";
 import { HttpException } from "../interfaces/error";
 import { LoginAccountCredentials } from "../interfaces/loginAccountCredentials";
 import User from "../models/user";
-import mailer from "@sendgrid/mail";
+import nodemailer from "nodemailer";
+import sendgridTransport from "nodemailer-sendgrid-transport";
  
-mailer.setApiKey( process.env.SENDGRID_API_KEY!);
+const mailer = nodemailer.createTransport(sendgridTransport({
+    auth: {
+        api_key: process.env.SENDGRID_API_KEY!
+    }
+}));
 
 // const signUp = async (req: Request, res: Response, next: NextFunction) => {
 //     const {username, password} = req.body as LoginAccountCredentials;
@@ -66,7 +71,7 @@ const change = async (req: Request, res: Response, next: NextFunction) => {
 
         user.set('password', hashedPassword);
         await user.save();
-        mailer.send({
+        mailer.sendMail({
             to: "francescomich@ymail.com",
             from: "francescobarranca@outlook.com",
             subject: "Password Change Successful",

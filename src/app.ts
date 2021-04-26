@@ -1,5 +1,6 @@
 import express from "express";
 import fs from "fs";
+import path from "path";
 import { json } from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -11,7 +12,8 @@ import { HttpException } from "./interfaces/error";
 import authRouter from "./routes/auth"
 import Order from "./models/order";
 import PDFDocument from "pdfkit";
-import mailer from "@sendgrid/mail";
+import nodemailer from "nodemailer";
+import sendgridTransport from "nodemailer-sendgrid-transport";
 import readableSeconds from "readable-seconds";
 import isAuth from "./middlewares/isAuth";
 import User from "./models/user";
@@ -33,7 +35,11 @@ const ONTAX = 1.13;
 const VILLETTA_LAT = '43.8022297';
 const VILLETTA_LNG = '-79.53088099999999';
 
-mailer.setApiKey(process.env.SENDGRID_API_KEY!);
+const mailer = nodemailer.createTransport(sendgridTransport({
+    auth: {
+        api_key: process.env.SENDGRID_API_KEY!
+    }
+}));
 
 const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     apiVersion: "2020-08-27",
@@ -146,8 +152,8 @@ app.post('/charge', async (req, res, next) => {
         }
 
         //Calculate Amount to Pay
-        let amt;
-        let tipCharge;
+        let amt: number;
+        let tipCharge: number;
         if(order.pickup) {
             tipCharge = ((order.total * ONTAX) * (order.tip / 100 + 1)) - (order.total * ONTAX);
             amt = +((order.total * ONTAX + tipCharge) * 100).toFixed(0);
@@ -183,7 +189,10 @@ app.post('/charge', async (req, res, next) => {
 
             const invoice = new PDFDocument();
 
-            invoice.pipe(fs.createWriteStream('invoice.pdf'));
+            const hst: number = order.pickup ? (order.total * ONTAX) - order.total :
+            ((order.total + (+order.homeDeliveryCost)) * ONTAX - (order.total + (+order.homeDeliveryCost)));
+
+            invoice.pipe(fs.createWriteStream(path.join(__dirname, 'invoices/invoice.pdf')));
 
             invoice.fontSize(16).text("Invoice", { underline: true });
             invoice.text("---------------------------------------");
@@ -196,16 +205,30 @@ app.post('/charge', async (req, res, next) => {
             invoice.text("---------------------------------------");
             if(!order.pickup) invoice.fontSize(16).text(`Delivery Fee: $${(+order.homeDeliveryCost).toFixed(2)}`);
             invoice.fontSize(16).text(`Tip : $${tipCharge.toFixed(2)} (${order.tip}%)`);
-            invoice.fontSize(16).text(`HST: $${(order.total * ONTAX - order.total).toFixed(2)}`);
+            invoice.fontSize(16).text(`HST: $${hst.toFixed(2)}`);
             invoice.fontSize(20).text(`Total: $${(amt / 100).toFixed(2)}`);
             invoice.end();
 
-            mailer.send({
+            mailer.sendMail({
                 to: order.email,
                 from: "francescobarranca@outlook.com",
                 subject: "Villetta Order Invoice",
-                html: `<h1>Thank you for choosing us!</h1>`,
-                attachments: [{filename: 'invoice.pdf', content: 'invoice.pdf'}]
+                html: `
+                    <h1>Thank you for choosing us!</h1>
+                    <h3>Delivery Fee: $${!order.pickup ? (+order.homeDeliveryCost).toFixed(2) : '0.00'}</h3>
+                    <h3>HST: $${hst.toFixed(2)}</h3>
+                    <h3>Tip : $${tipCharge.toFixed(2)} (${order.tip}%)</h3>
+                    <h3>Total: $${(amt / 100).toFixed(2)}</h3>
+                `,
+                attachments: [
+                    {
+                        filename: "invoice.pdf",  
+                        path: path.join(__dirname, 'invoices/invoice.pdf')
+                    }
+                ]
+            }).then(() => console.log("Invoice Sent to client")).catch((err) => {
+                console.log("Invoice Mail Error");
+                console.log(err);
             });
 
             return res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
@@ -235,7 +258,7 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
             const hash = await bcrypt.hash(password, 12);
             await new User({username: 'resadmin', password: hash}).save();
 
-            mailer.send({
+            mailer.sendMail({
                 to: "francescomich99@gmail.com",
                 from: "francescobarranca@outlook.com",
                 subject: "Automatic Password Reset",
