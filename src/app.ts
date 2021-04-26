@@ -46,8 +46,13 @@ const whitelist = [
     'http://localhost:4200',
     'http://localhost', 
     'https://localhost', 
-    'http://villetta-app', 
-    'https://villetta-app']
+    'http://localhost:81',
+    'https://localhost:81',
+    // 'http://villetta-app', 
+    // 'https://villetta-app',
+    // 'http://villetta-orders-app', 
+    // 'https://villetta-orders-app'
+]
 
 app.use(cors({
     origin: function (origin: any, callback) {
