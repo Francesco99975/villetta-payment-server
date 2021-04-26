@@ -1,4 +1,6 @@
 import express from "express";
+import http from "http";
+import { Server } from "socket.io";
 import fs from "fs";
 import path from "path";
 import { json } from "body-parser";
@@ -35,18 +37,6 @@ const ONTAX = 1.13;
 const VILLETTA_LAT = '43.8022297';
 const VILLETTA_LNG = '-79.53088099999999';
 
-const mailer = nodemailer.createTransport(sendgridTransport({
-    auth: {
-        api_key: process.env.SENDGRID_API_KEY!
-    }
-}));
-
-const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
-    apiVersion: "2020-08-27",
-    typescript: true
-});
-
-
 const whitelist = [
     'http://localhost:4201',
     'http://localhost:4200',
@@ -59,6 +49,36 @@ const whitelist = [
     // 'http://villetta-orders-app', 
     // 'https://villetta-orders-app'
 ]
+
+const mailer = nodemailer.createTransport(sendgridTransport({
+    auth: {
+        api_key: process.env.SENDGRID_API_KEY!
+    }
+}));
+
+const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
+    apiVersion: "2020-08-27",
+    typescript: true
+});
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        credentials: true,
+        origin: function (origin: any, callback) {
+            if (whitelist.indexOf(origin) !== -1 || !origin) {
+            callback(null, true)
+            } else {
+            callback(new Error('Not allowed by CORS'))
+            }
+        }
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log(`A connection as been created with: ${socket.id}`);
+});
+
 
 app.use(cors({
     origin: function (origin: any, callback) {
@@ -173,7 +193,7 @@ app.post('/charge', async (req, res, next) => {
         }
 
         if(success || order.method === 'c') {
-            await new Order({
+            const newOrder = await new Order({
                 clientname: order.firstname + ' ' + order.lastname,
                 items: order.items,
                 email: order.email,
@@ -231,6 +251,8 @@ app.post('/charge', async (req, res, next) => {
                 console.log(err);
             });
 
+            io.sockets.emit('create', newOrder);
+
             return res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
         } else {
             return res.status(401).json({'message': 'An error occurred'});
@@ -275,9 +297,10 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
                 console.log(err);
             });
         }
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
         });
+        
     })
     .catch((err) => {
         console.log("DB ERROR!!!");
