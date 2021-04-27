@@ -44,6 +44,8 @@ const whitelist = [
     'https://localhost', 
     'http://localhost:81',
     'https://localhost:81',
+    'http://192.168.0.38', 
+    'http://192.168.0.38:81',
     // 'http://villetta-app', 
     // 'https://villetta-app',
     // 'http://villetta-orders-app', 
@@ -77,6 +79,13 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
     console.log(`A connection as been created with: ${socket.id}`);
+
+    socket.on('disconnect', () => { 
+        socket.removeAllListeners('create');
+        socket.removeAllListeners('disconnect');
+        io.removeAllListeners('connection');
+        console.log(`${socket.id} Disconnected!`);
+    });
 });
 
 
