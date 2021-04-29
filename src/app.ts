@@ -20,6 +20,7 @@ import readableSeconds from "readable-seconds";
 import isAuth from "./middlewares/isAuth";
 import User from "./models/user";
 import bcrypt from "bcrypt";
+import cron from "node-cron";
 import { generatePasswordV2 } from "./models/passwordGenerator";
 
 const app = express();
@@ -89,7 +90,6 @@ io.on('connection', (socket) => {
     });
 });
 
-
 app.use(cors({
     origin: function (origin: any, callback) {
                 if (whitelist.indexOf(origin) !== -1 || !origin) {
@@ -141,14 +141,15 @@ app.post('/charge', async (req, res, next) => {
         let etaDesc: string;
 
         if(!order.pickup) {
-            const formattedAddress = order.address.replace(' ', '+');
-            const location = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${formattedAddress}+ON+Canada&key=${process.env.GOOGLE_API_KEY}`);
+            const formattedAddress = order.address.split(' ').join('+');
+            const location = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${formattedAddress}, +ON,+CA&key=${process.env.GOOGLE_API_KEY}`);
 
             if(location.data.status == 'OVER_QUERY_LIMIT') {
                 return res.status(500).json({'message': 'Too Many Requests'});
             }
 
             if(location.data.status == 'ZERO_RESULTS') {
+                console.log(location);
                 return res.status(401).json({'message': 'Address Not Found'});
             }
 
@@ -307,6 +308,21 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
                 console.log(err);
             });
         }
+
+        cron.schedule('* 23 * * *', async () => {
+            try {
+                console.log("Cleaning Database");
+                await Order.deleteMany({
+                    fulfilled: true, 
+                    createdAt: {$lt:new Date(Date.now() - 24*60*60 * 1000)}
+                });
+                const orders = await Order.find();
+                io.sockets.emit('update', orders);
+            } catch (error) {
+                console.log(error);
+            }
+        });
+
         server.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
         });
