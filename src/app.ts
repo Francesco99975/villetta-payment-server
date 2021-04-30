@@ -90,6 +90,20 @@ io.on('connection', (socket) => {
     });
 });
 
+cron.schedule('59 23 * * *', async () => {
+    try {
+        console.log("Cleaning Database");
+        await Order.deleteMany({
+            fulfilled: true, 
+            createdAt: {$lt:new Date(Date.now() - 24*60*60 * 1000)}
+        });
+        const orders = await Order.find();
+        io.sockets.emit('update', orders);
+    } catch (error) {
+        console.log(error);
+    }
+});
+
 app.use(cors({
     origin: function (origin: any, callback) {
                 if (whitelist.indexOf(origin) !== -1 || !origin) {
@@ -125,6 +139,9 @@ app.put('/order/:id', isAuth, async (req, res, next) => {
         }
         order.set('fulfilled', status);
         await order.save();
+
+        const updatedOrders = await Order.find();
+        io.sockets.emit('update', updatedOrders)
         return res.status(201).json({message: 'order status updated', id});
     } catch (error) {
         return next(error);
@@ -308,20 +325,6 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
                 console.log(err);
             });
         }
-
-        cron.schedule('* 23 * * *', async () => {
-            try {
-                console.log("Cleaning Database");
-                await Order.deleteMany({
-                    fulfilled: true, 
-                    createdAt: {$lt:new Date(Date.now() - 24*60*60 * 1000)}
-                });
-                const orders = await Order.find();
-                io.sockets.emit('update', orders);
-            } catch (error) {
-                console.log(error);
-            }
-        });
 
         server.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
