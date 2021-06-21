@@ -21,7 +21,17 @@ import isAuth from "./middlewares/isAuth";
 import User from "./models/user";
 import bcrypt from "bcrypt";
 import cron from "node-cron";
+import webpush from "web-push";
 import { generatePasswordV2 } from "./models/passwordGenerator";
+import Subscription from "./models/subscription";
+
+// import https from "https";
+
+// const options = {
+//     cert: fs.readFileSync("/home/francesco/code/villetta-orders-app/localhost.der"),
+//     key: fs.readFileSync("/home/francesco/code/villetta-orders-app/localhost.key")
+//   };
+  
 
 const app = express();
 
@@ -41,6 +51,7 @@ const VILLETTA_LNG = '-79.53088099999999';
 const whitelist = [
     'http://localhost:4201',
     'http://localhost:4200',
+    'http://localhost:4000',
     'http://localhost', 
     'https://localhost', 
     'http://localhost:81',
@@ -48,6 +59,7 @@ const whitelist = [
     'http://192.168.0.38',
     'http://192.168.0.38:80', 
     'http://192.168.0.38:81',
+    'http://192.168.0.38:4201'
     // 'http://villetta-app', 
     // 'https://villetta-app',
     // 'http://villetta-orders-app', 
@@ -64,6 +76,12 @@ const stripe = new Stripe(process.env.STRIPE_PRIVATE_API_KEY!, {
     apiVersion: "2020-08-27",
     typescript: true
 });
+
+webpush.setVapidDetails(
+    'mailto:example@yourdomain.org',
+    process.env.PUBLIC_VAPID_KEY!,
+    process.env.PRIVATE_VAPID_KEY!
+);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -117,6 +135,46 @@ app.use(json());
 
 app.get('/', (req, res, next) => {
     return res.json({'message': "Welcome to the payment server"});
+});
+
+app.post('/subscribe', async (req, res, next) => {
+    console.log("Attempting Notification Subscription");
+    let sub = req.body;
+    try {
+        await new Subscription({
+            endpoint: sub.endpoint,
+            keys: sub.keys
+        }).save();
+    
+        const notificationPayload = {
+            "notification": {
+                "title": "Subscription Successful",
+                "body": "You are will now receive notifications!",
+                "icon": path.join(__dirname, 'assets/icon-48x48.png'),
+                "vibrate": [100, 50, 100],
+                "data": {
+                    "dateOfArrival": Date.now(),
+                    "primaryKey": 1
+                }
+            }
+        };
+    
+        res.status(201).json({message: 'subscribed'});
+    
+        webpush.sendNotification(sub, JSON.stringify(notificationPayload))
+        .then((res) => {
+            console.log(res);
+            console.log("Notification sent!");
+        })
+        .catch((err) => {
+            console.log(err);
+            console.log("Notification Error");
+        });
+    
+        return;
+    } catch (error) {
+        next(error);
+    }
 });
 
 app.get('/orders', isAuth, async (req, res, next) => {
@@ -281,7 +339,43 @@ app.post('/charge', async (req, res, next) => {
 
             io.sockets.emit('create', newOrder);
 
-            return res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
+            res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
+
+            const subscriptions = await Subscription.find();
+
+            const notificationPayload = {
+                "notification": {
+                    "title": "Order Received",
+                    "body": `A new order arrived!`,
+                    "icon": path.join(__dirname, 'assets/icon-48x48.png'),
+                    "vibrate": [100, 50, 100],
+                    "data": {
+                        "dateOfArrival": Date.now(),
+                        "primaryKey": 1
+                    }
+                }
+            };
+
+            Promise.all(
+                subscriptions.map((subDoc) => {
+                    let sub = {
+                        endpoint: subDoc.get('endpoint'),
+                        keys: subDoc.get('keys')
+                    }
+    
+                    return webpush.sendNotification(sub, JSON.stringify(notificationPayload));
+                })
+            )
+            .then((res) => {
+                console.log(res);
+                console.log("Notification sent!");
+            })
+            .catch((err) => {
+                console.log(err);
+                console.log("Notification Error");
+            });
+
+            return;
         } else {
             return res.status(401).json({'message': 'An error occurred'});
         }
