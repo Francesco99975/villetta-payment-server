@@ -31,13 +31,13 @@ import Subscription from "./models/subscription";
 //     cert: fs.readFileSync("/home/francesco/code/villetta-orders-app/localhost.der"),
 //     key: fs.readFileSync("/home/francesco/code/villetta-orders-app/localhost.key")
 //   };
-  
+
 
 const app = express();
 
 let result = dotenv.config();
 
-if(result.error) {
+if (result.error) {
     console.log(result.error);
 }
 
@@ -52,14 +52,16 @@ const whitelist = [
     'http://localhost:4201',
     'http://localhost:4200',
     'http://localhost:4000',
-    'http://localhost', 
-    'https://localhost', 
+    'http://localhost',
+    'https://localhost',
     'http://localhost:81',
     'https://localhost:81',
     'http://192.168.0.38',
-    'http://192.168.0.38:80', 
+    'http://192.168.0.38:80',
     'http://192.168.0.38:81',
-    'http://192.168.0.38:4201'
+    'http://192.168.0.38:4201',
+    'https://villetta.francescobarranca.dev',
+    'https://vilorders.francescobarranca.dev'
     // 'http://villetta-app', 
     // 'https://villetta-app',
     // 'http://villetta-orders-app', 
@@ -89,9 +91,9 @@ const io = new Server(server, {
         credentials: true,
         origin: function (origin: any, callback) {
             if (whitelist.indexOf(origin) !== -1 || !origin) {
-            callback(null, true)
+                callback(null, true)
             } else {
-            callback(new Error('Not allowed by CORS'))
+                callback(new Error('Not allowed by CORS'))
             }
         }
     }
@@ -100,7 +102,7 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
     console.log(`A connection as been created with: ${socket.id}`);
 
-    socket.on('disconnect', () => { 
+    socket.on('disconnect', () => {
         socket.removeAllListeners('create');
         socket.removeAllListeners('disconnect');
         io.removeAllListeners('connection');
@@ -112,8 +114,8 @@ cron.schedule('59 23 * * *', async () => {
     try {
         console.log("Cleaning Database");
         await Order.deleteMany({
-            fulfilled: true, 
-            createdAt: {$lt:new Date(Date.now() - 24*60*60 * 1000)}
+            fulfilled: true,
+            createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         });
         const orders = await Order.find();
         io.sockets.emit('update', orders);
@@ -124,17 +126,17 @@ cron.schedule('59 23 * * *', async () => {
 
 app.use(cors({
     origin: function (origin: any, callback) {
-                if (whitelist.indexOf(origin) !== -1 || !origin) {
-                callback(null, true)
-                } else {
-                callback(new Error('Not allowed by CORS'))
-                }
-            }
+        if (whitelist.indexOf(origin) !== -1 || !origin) {
+            callback(null, true)
+        } else {
+            callback(new Error('Not allowed by CORS'))
+        }
+    }
 }));
 app.use(json());
 
 app.get('/', (req, res, next) => {
-    return res.json({'message': "Welcome to the payment server"});
+    return res.json({ 'message': "Welcome to the payment server" });
 });
 
 app.post('/subscribe', async (req, res, next) => {
@@ -145,7 +147,7 @@ app.post('/subscribe', async (req, res, next) => {
             endpoint: sub.endpoint,
             keys: sub.keys
         }).save();
-    
+
         const notificationPayload = {
             "notification": {
                 "title": "Subscription Successful",
@@ -158,19 +160,19 @@ app.post('/subscribe', async (req, res, next) => {
                 }
             }
         };
-    
-        res.status(201).json({message: 'subscribed'});
-    
+
+        res.status(201).json({ message: 'subscribed' });
+
         webpush.sendNotification(sub, JSON.stringify(notificationPayload))
-        .then((res) => {
-            console.log(res);
-            console.log("Notification sent!");
-        })
-        .catch((err) => {
-            console.log(err);
-            console.log("Notification Error");
-        });
-    
+            .then((res) => {
+                console.log(res);
+                console.log("Notification sent!");
+            })
+            .catch((err) => {
+                console.log(err);
+                console.log("Notification Error");
+            });
+
         return;
     } catch (error) {
         next(error);
@@ -180,7 +182,7 @@ app.post('/subscribe', async (req, res, next) => {
 app.get('/orders', isAuth, async (req, res, next) => {
     try {
         const orders = await Order.find();
-        return res.status(200).json({orders});
+        return res.status(200).json({ orders });
     } catch (error) {
         return next(error);
     }
@@ -192,7 +194,7 @@ app.put('/order/:id', isAuth, async (req, res, next) => {
 
     try {
         const order = await Order.findById(id);
-        if(!order) {
+        if (!order) {
             throw new HttpException(404, "Could not find any order with this id");
         }
         order.set('fulfilled', status);
@@ -200,7 +202,7 @@ app.put('/order/:id', isAuth, async (req, res, next) => {
 
         const updatedOrders = await Order.find();
         io.sockets.emit('update', updatedOrders)
-        return res.status(201).json({message: 'order status updated', id});
+        return res.status(201).json({ message: 'order status updated', id });
     } catch (error) {
         return next(error);
     }
@@ -215,23 +217,23 @@ app.post('/charge', async (req, res, next) => {
         let eta: number;
         let etaDesc: string;
 
-        if(!order.pickup) {
+        if (!order.pickup) {
             const formattedAddress = order.address.split(' ').join('+');
             const location = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${formattedAddress}, +ON,+CA&key=${process.env.GOOGLE_API_KEY}`);
 
-            if(location.data.status == 'OVER_QUERY_LIMIT') {
-                return res.status(500).json({'message': 'Too Many Requests'});
+            if (location.data.status == 'OVER_QUERY_LIMIT') {
+                return res.status(500).json({ 'message': 'Too Many Requests' });
             }
 
-            if(location.data.status == 'ZERO_RESULTS') {
+            if (location.data.status == 'ZERO_RESULTS') {
                 console.log(location);
-                return res.status(401).json({'message': 'Address Not Found'});
+                return res.status(401).json({ 'message': 'Address Not Found' });
             }
 
             const province = location.data.results[0].address_components.find((el: any) => el.types[0] == 'administrative_area_level_1');
 
-            if(province.short_name != 'ON') {
-                return res.status(401).json({'message': 'Address out of resturants bounds'});
+            if (province.short_name != 'ON') {
+                return res.status(401).json({ 'message': 'Address out of resturants bounds' });
             }
 
             const lat = location.data.results[0].geometry.location.lat;
@@ -242,14 +244,14 @@ app.post('/charge', async (req, res, next) => {
             const distance = etaInfo.data.rows[0].elements[0].distance.value;
             const duration = etaInfo.data.rows[0].elements[0].duration.value;
 
-            if(distance > 20000 && !order.pickup) {
-                return res.status(401).json({'message': 'Address out of delivery bounds'});
+            if (distance > 20000 && !order.pickup) {
+                return res.status(401).json({ 'message': 'Address out of delivery bounds' });
             }
 
             eta = duration + (+order.orderPreparationTime * 60);
             etaDesc = readableSeconds(eta);
 
-            if(etaDesc.includes('seconds')) {
+            if (etaDesc.includes('seconds')) {
                 etaDesc = etaDesc.substring(0, etaDesc.indexOf('and')).trim();
             }
         } else {
@@ -260,7 +262,7 @@ app.post('/charge', async (req, res, next) => {
         //Calculate Amount to Pay
         let amt: number;
         let tipCharge: number;
-        if(order.pickup) {
+        if (order.pickup) {
             tipCharge = ((order.total * ONTAX) * (order.tip / 100 + 1)) - (order.total * ONTAX);
             amt = +((order.total * ONTAX + tipCharge) * 100).toFixed(0);
         } else {
@@ -269,7 +271,7 @@ app.post('/charge', async (req, res, next) => {
         }
 
         let success;
-        if(order.method === 's') {
+        if (order.method === 's') {
             success = await stripe.charges.create({
                 amount: amt,
                 currency: "cad",
@@ -278,7 +280,7 @@ app.post('/charge', async (req, res, next) => {
             });
         }
 
-        if(success || order.method === 'c') {
+        if (success || order.method === 'c') {
             const newOrder = await new Order({
                 clientname: order.firstname + ' ' + order.lastname,
                 items: order.items,
@@ -296,7 +298,7 @@ app.post('/charge', async (req, res, next) => {
             const invoice = new PDFDocument();
 
             const hst: number = order.pickup ? (order.total * ONTAX) - order.total :
-            ((order.total + (+order.homeDeliveryCost)) * ONTAX - (order.total + (+order.homeDeliveryCost)));
+                ((order.total + (+order.homeDeliveryCost)) * ONTAX - (order.total + (+order.homeDeliveryCost)));
 
             invoice.pipe(fs.createWriteStream(path.join(__dirname, 'invoices/invoice.pdf')));
 
@@ -305,11 +307,11 @@ app.post('/charge', async (req, res, next) => {
 
             order.items.forEach((item) => {
                 invoice.text(
-                `${item.product.name} - x${item.quantity} / $${(item.product.price * item.quantity).toFixed(2)} --- $${item.product.price} ea.`
+                    `${item.product.name} - x${item.quantity} / $${(item.product.price * item.quantity).toFixed(2)} --- $${item.product.price} ea.`
                 );
             });
             invoice.text("---------------------------------------");
-            if(!order.pickup) invoice.fontSize(16).text(`Delivery Fee: $${(+order.homeDeliveryCost).toFixed(2)}`);
+            if (!order.pickup) invoice.fontSize(16).text(`Delivery Fee: $${(+order.homeDeliveryCost).toFixed(2)}`);
             invoice.fontSize(16).text(`Tip : $${tipCharge.toFixed(2)} (${order.tip}%)`);
             invoice.fontSize(16).text(`HST: $${hst.toFixed(2)}`);
             invoice.fontSize(20).text(`Total: $${(amt / 100).toFixed(2)}`);
@@ -328,7 +330,7 @@ app.post('/charge', async (req, res, next) => {
                 `,
                 attachments: [
                     {
-                        filename: "invoice.pdf",  
+                        filename: "invoice.pdf",
                         path: path.join(__dirname, 'invoices/invoice.pdf')
                     }
                 ]
@@ -339,7 +341,7 @@ app.post('/charge', async (req, res, next) => {
 
             io.sockets.emit('create', newOrder);
 
-            res.status(201).json({'message': 'order created', eta: etaDesc, pickup: order.pickup});
+            res.status(201).json({ 'message': 'order created', eta: etaDesc, pickup: order.pickup });
 
             const subscriptions = await Subscription.find();
 
@@ -362,22 +364,22 @@ app.post('/charge', async (req, res, next) => {
                         endpoint: subDoc.get('endpoint'),
                         keys: subDoc.get('keys')
                     }
-    
+
                     return webpush.sendNotification(sub, JSON.stringify(notificationPayload));
                 })
             )
-            .then((res) => {
-                console.log(res);
-                console.log("Notification sent!");
-            })
-            .catch((err) => {
-                console.log(err);
-                console.log("Notification Error");
-            });
+                .then((res) => {
+                    console.log(res);
+                    console.log("Notification sent!");
+                })
+                .catch((err) => {
+                    console.log(err);
+                    console.log("Notification Error");
+                });
 
             return;
         } else {
-            return res.status(401).json({'message': 'An error occurred'});
+            return res.status(401).json({ 'message': 'An error occurred' });
         }
     } catch (error) {
         next(error);
@@ -385,22 +387,22 @@ app.post('/charge', async (req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    return res.status(404).json({message: "Route not found"});
+    return res.status(404).json({ message: "Route not found" });
 });
 
 app.use((error: HttpException, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.log(error);
-    return res.status(error.code || 500).json({message: error.message || "An error occurred on the server"});
+    return res.status(error.code || 500).json({ message: error.message || "An error occurred on the server" });
 });
 
-mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopology: true})
+mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(async () => {
         const users = await User.find();
-        if(!users || users.length <= 0) {
+        if (!users || users.length <= 0) {
             const password = generatePasswordV2(10, 1, 1, 1, 1);
             // const password = "password";
             const hash = await bcrypt.hash(password, 12);
-            await new User({username: 'resadmin', password: hash}).save();
+            await new User({ username: 'resadmin', password: hash }).save();
 
             mailer.sendMail({
                 to: "francescomich99@gmail.com",
@@ -423,10 +425,10 @@ mongoose.connect(process.env.MONGO_URI!, { useNewUrlParser: true, useUnifiedTopo
         server.listen(PORT, () => {
             console.log(`Payment Server Started!\nPORT: ${PORT} \nENVIRONMENT: ${process.env.NODE_ENV}`);
         });
-        
+
     })
     .catch((err) => {
         console.log("DB ERROR!!!");
         console.log(process.env.MONGO_URI);
-        console.log(err); 
+        console.log(err);
     });
