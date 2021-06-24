@@ -151,7 +151,7 @@ app.post('/subscribe', async (req, res, next) => {
         const notificationPayload = {
             "notification": {
                 "title": "Subscription Successful",
-                "body": "You are will now receive notifications!",
+                "body": "You are subscribed! Now you will receive notifications!",
                 "icon": path.join(__dirname, 'assets/icon-48x48.png'),
                 "vibrate": [100, 50, 100],
                 "data": {
@@ -345,42 +345,44 @@ app.post('/charge', async (req, res, next) => {
 
             const subscriptions = await Subscription.find();
 
-            const notificationPayload = {
-                "notification": {
-                    "title": "Order Received",
-                    "body": `A new order arrived!`,
-                    "icon": path.join(__dirname, 'assets/icon-48x48.png'),
-                    "vibrate": [100, 50, 100],
-                    "data": {
-                        "dateOfArrival": Date.now(),
-                        "primaryKey": 1
+            if (subscriptions != null) {
+                const notificationPayload = {
+                    "notification": {
+                        "title": "Order Received",
+                        "body": `A new order arrived!`,
+                        "icon": path.join(__dirname, 'assets/icon-48x48.png'),
+                        "vibrate": [100, 50, 100],
+                        "data": {
+                            "dateOfArrival": Date.now(),
+                            "primaryKey": 1
+                        }
                     }
-                }
-            };
-
-            Promise.all(
-                subscriptions.map((subDoc) => {
-                    let sub = {
-                        endpoint: subDoc.get('endpoint'),
-                        keys: subDoc.get('keys')
-                    }
-
-                    return webpush.sendNotification(sub, JSON.stringify(notificationPayload));
-                })
-            )
-                .then((res) => {
-                    console.log(res);
-                    console.log("Notification sent!");
-                })
-                .catch((err) => {
-                    console.log(err);
-                    console.log("Notification Error");
-                });
-
-            return;
-        } else {
-            return res.status(401).json({ 'message': 'An error occurred' });
-        }
+                };
+    
+                Promise.all(
+                    subscriptions.map((subDoc) => {
+                        let sub = {
+                            endpoint: subDoc.get('endpoint'),
+                            keys: subDoc.get('keys')
+                        }
+    
+                        return webpush.sendNotification(sub, JSON.stringify(notificationPayload));
+                    })
+                )
+                    .then((res) => {
+                        console.log(res);
+                        console.log("Notification sent!");
+                    })
+                    .catch((err) => {
+                        console.log(err);
+                        console.log("Notification Error");
+                    });
+    
+                return;
+            } else {
+                return res.status(401).json({ 'message': 'An error occurred' });
+            }
+            }
     } catch (error) {
         next(error);
     }
