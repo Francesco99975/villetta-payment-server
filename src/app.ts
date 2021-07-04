@@ -360,7 +360,7 @@ app.post('/charge', async (req, res, next) => {
                 };
     
                 Promise.all(
-                    subscriptions.map((subDoc) => {
+                    subscriptions.map((subDoc: mongoose.Document) => {
                         let sub = {
                             endpoint: subDoc.get('endpoint'),
                             keys: subDoc.get('keys')
